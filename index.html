@@ -82,4 +82,379 @@
     .status-btn.selected { outline:3px solid #0f172a; }
     .status-btn.normal { grid-column:span 2; background:#f0fdf4; border-color:#22c55e; color:#15803d; }
     .status-btn.heat { background:var(--heat); border-color:var(--heat-b); color:var(--heat-t); }
-    .status-btn.water { background
+    .status-btn.water { background:var(--water); border-color:var(--water-b); color:var(--water-t); }
+    .status-btn.both { background:var(--both); border-color:var(--both-b); color:var(--both-t); }
+    .status-btn.work { background:var(--work); border-color:var(--work-b); color:var(--work-t); }
+    .status-btn.block { grid-column:span 2; background:var(--block); border-color:var(--block-b); color:var(--block-t); }
+    .datetime-panel { background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:10px; margin-top:8px; }
+    .dt-row { margin-bottom:8px; }
+    .dt-row:last-child { margin-bottom:0; }
+    .dt-header { display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; font-weight:800; margin-bottom:4px; }
+    .dt-qbtn { background:#e2e8f0; border:none; border-radius:5px; padding:3px 7px; font-size:0.68rem; font-weight:700; cursor:pointer; }
+    .dt-input { width:100%; padding:7px; border:1px solid #cbd5e1; border-radius:7px; font-size:0.84rem; font-weight:700; background:#fff; }
+    .dept-group, .tag-group { display:flex; flex-wrap:wrap; gap:5px; }
+    .chip { padding:5px 9px; border-radius:999px; font-size:0.74rem; font-weight:700; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; }
+    .chip.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+    .memo-input { width:100%; padding:9px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem; margin-top:4px; min-height:54px; }
+    .save-btn { width:100%; margin-top:10px; padding:11px; border:none; border-radius:10px; background:#0f172a; color:#fff; font-size:0.92rem; font-weight:800; cursor:pointer; }
+    .history-box { margin-top:12px; border-top:1px dashed #cbd5e1; padding-top:10px; }
+    .hist-item { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px; margin-bottom:6px; font-size:0.76rem; }
+    .hist-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+    .hist-btn { background:#fff; border:1px solid #cbd5e1; border-radius:5px; padding:2px 6px; font-size:0.68rem; font-weight:700; cursor:pointer; }
+    .hist-edit-area { display:none; margin-top:6px; padding-top:6px; border-top:1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>🏢 PINE RESORTEL 난방·온수 실시간 통합 상황판</h1>
+      <p>프런트 · 에스와이(객실팀) · 시설팀 실시간 공유 (문제 발생일시 · 조치완료일시 기록)</p>
+    </div>
+    <span id="syncBadge" class="sync-badge">🟢 실시간 연결중...</span>
+  </div>
+
+  <div class="toolbar">
+    <div class="stats-group">
+      <div class="stat-pill active" onclick="setFilter('all')" id="filter-all">전체 문제 <span id="cnt-all">0</span></div>
+      <div class="stat-pill heat" onclick="setFilter('heat')" id="filter-heat">🔥 난방불량 <span id="cnt-heat">0</span></div>
+      <div class="stat-pill water" onclick="setFilter('water')" id="filter-water">💧 온수불량 <span id="cnt-water">0</span></div>
+      <div class="stat-pill both" onclick="setFilter('both')" id="filter-both">🚨 난방+온수 <span id="cnt-both">0</span></div>
+      <div class="stat-pill work" onclick="setFilter('work')" id="filter-work">🔧 조치중 <span id="cnt-work">0</span></div>
+      <div class="stat-pill block" onclick="setFilter('block')" id="filter-block">⛔ 방막기 <span id="cnt-block">0</span></div>
+      <div class="stat-pill done" onclick="setFilter('done')" id="filter-done">✅ 조치완료 이력 <span id="cnt-done">0</span></div>
+    </div>
+    <div class="action-group">
+      <button class="btn btn-kakao" onclick="copyKakaoSummary()">💬 카톡 단톡방 공유복사</button>
+      <button class="btn btn-excel" onclick="exportCSV()">📊 엑셀(CSV) 저장</button>
+    </div>
+  </div>
+
+  <div id="riserAlert" class="riser-alert"></div>
+  <div class="map-container"><table class="resort-map" id="resortMap"></table></div>
+
+  <div class="issue-panel">
+    <h2>
+      <span id="panelTitle">📋 현재 민원 · 조치중 객실 타임라인</span>
+      <span style="font-size:0.75rem; color:#64748b;">카드를 터치하면 날짜·시간·내용을 바로 수정합니다</span>
+    </h2>
+    <div id="issueList" class="issue-list"></div>
+  </div>
+
+  <div class="modal-backdrop" id="roomModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalRoomTitle">객실 상태 관리</h3>
+        <button class="close-btn" onclick="closeModal()">×</button>
+      </div>
+      <div class="section-label">1. 상태 선택 (터치 시 시각 자동 입력)</div>
+      <div class="status-grid">
+        <button class="status-btn heat" onclick="selectStatus('heat')" id="btn-heat">🔥 난방 안됨</button>
+        <button class="status-btn water" onclick="selectStatus('water')" id="btn-water">💧 온수 안됨</button>
+        <button class="status-btn both" onclick="selectStatus('both')" id="btn-both">🚨 난방+온수 둘다 안됨</button>
+        <button class="status-btn work" onclick="selectStatus('work')" id="btn-work">🔧 시설팀 조치중/예열중</button>
+        <button class="status-btn block" onclick="selectStatus('block')" id="btn-block">⛔ 판매보류 / 방막기 (배정금지)</button>
+        <button class="status-btn normal" onclick="selectStatus('normal')" id="btn-normal">✅ 조치 완료 (정상 복구 + 완료시간 기록)</button>
+      </div>
+
+      <div class="datetime-panel">
+        <div class="dt-row">
+          <div class="dt-header">
+            <span style="color:#dc2626;">🚨 문제 발생(민원 접수) 일시</span>
+            <div>
+              <button type="button" class="dt-qbtn" onclick="setQuickTime('issueTimeInput',0)">지금</button>
+              <button type="button" class="dt-qbtn" onclick="setQuickTime('issueTimeInput',-30)">30분전</button>
+              <button type="button" class="dt-qbtn" onclick="setQuickTime('issueTimeInput',-60)">1시간전</button>
+              <button type="button" class="dt-qbtn" onclick="setQuickTime('issueTimeInput',-1440)">어제</button>
+            </div>
+          </div>
+          <input type="datetime-local" id="issueTimeInput" class="dt-input" />
+        </div>
+        <div class="dt-row">
+          <div class="dt-header">
+            <span style="color:#16a34a;">🔧 조치 / 완료 일시</span>
+            <div>
+              <button type="button" class="dt-qbtn" onclick="setQuickTime('actionTimeInput',0)">지금</button>
+              <button type="button" class="dt-qbtn" onclick="setQuickTime('actionTimeInput',-30)">30분전</button>
+              <button type="button" class="dt-qbtn" onclick="document.getElementById('actionTimeInput').value=''">비우기</button>
+            </div>
+          </div>
+          <input type="datetime-local" id="actionTimeInput" class="dt-input" />
+        </div>
+      </div>
+
+      <div class="section-label">2. 등록/조치 부서</div>
+      <div class="dept-group">
+        <span class="chip active" onclick="selectDept('프런트')" id="dept-프런트">프런트</span>
+        <span class="chip" onclick="selectDept('에스와이(객실)')" id="dept-에스와이(객실)">에스와이(객실)</span>
+        <span class="chip" onclick="selectDept('시설팀')" id="dept-시설팀">시설팀</span>
+      </div>
+
+      <div class="section-label">3. 빠른 증상·조치 태그</div>
+      <div class="tag-group">
+        <span class="chip" onclick="addTag('#바닥냉골')">#바닥냉골</span>
+        <span class="chip" onclick="addTag('#온수미지근')">#온수미지근</span>
+        <span class="chip" onclick="addTag('#에어참(소음)')">#에어참(소음)</span>
+        <span class="chip" onclick="addTag('#온도조절기불량')">#온도조절기불량</span>
+        <span class="chip" onclick="addTag('#구동기/밸브교체')">#구동기/밸브교체</span>
+        <span class="chip" onclick="addTag('#룸체인지완료')">#룸체인지완료</span>
+        <span class="chip" onclick="addTag('#에어빼기완료')">#에어빼기완료</span>
+      </div>
+
+      <div class="section-label">4. 상세 내용 / 조치 메모</div>
+      <textarea id="memoInput" class="memo-input" placeholder="예: 투숙객 클레임 룸체인지 / 시설팀 에어빼기 및 밸브 점검"></textarea>
+      <button class="save-btn" onclick="saveRoomState()">💾 저장 및 전 부서 실시간 공유</button>
+
+      <div class="history-box">
+        <div class="section-label" style="margin-top:0;">
+          <span>📜 객실 누적 발생·조치 기록 (수정 가능)</span>
+          <button type="button" class="dt-qbtn" style="color:#dc2626;" onclick="clearRoomCompletely()">방 초기화</button>
+        </div>
+        <div id="roomHistoryList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 10F~2F 배치도 자동 생성 (코드 잘림 방지 압축)
+    const R = (a, b) => Array.from({length: Math.abs(b - a) + 1}, (_, i) => String(a <= b ? a + i : a - i));
+    const FLOOR_DATA = [
+      { floor:"10F", upper:["1005S","복층","복층","1006M","1007M","1008S","1009S","1010S","1011S","1012S","1013S","1014S","1015S","1016S","복층","복층","","1017L",""], lower:["1004S","복층","1003X","1002M","1001M","EVL / 비상구","MERGE","1026S","1025S","1024S","1023S","1022S","1021S","1020S","1019S","복층","복층","1018L",""] },
+      { floor:"9F", upper:["복층","905MD","906MD","907","908","909","910","911","912","913","914","915","916","917","918MD","919MD","","복층","복층"], lower:["복층","904LD","903","902","901","EVL / 비상구","MERGE","929","928","927","926","925","924","923","922","921MD","920MD","복층","복층"] },
+      { floor:"8F", upper:["806LD",...R(807,821),"","822MD","823MD"], lower:["805LD",...R(804,801),"EVL / 비상구","MERGE",...R(835,826),"825MD","824MD"] },
+      ...[7,6,5,4,3].map(f => ({ floor:f+"F", upper:[...R(f*100+6,f*100+21),"",f+"22",f+"23"], lower:[...R(f*100+5,f*100+1),"EVL / 비상구","MERGE",...R(f*100+35,f*100+24)] })),
+      { floor:"2F", upper:["206","207","208","209","210","교환실","방재실","211","212","213","214","215","216","217","218M","219","","220","221"], lower:["205","204","203","202","201","EVL / 비상구","MERGE","233","232","231","230","229","228","227","226","225M","224","223","222"] }
+    ];
+
+    const STATUS_LABELS = { normal:"✅조치완료", heat:"🔥난방불량", water:"💧온수불량", both:"🚨난방+온수", work:"🔧조치중", block:"⛔방막기" };
+    function loadLocal() { try { return JSON.parse(localStorage.getItem("pine_resortel_rooms") || "{}"); } catch(e) { return {}; } }
+    function saveLocal(d) { try { localStorage.setItem("pine_resortel_rooms", JSON.stringify(d)); } catch(e) {} }
+
+    let roomStates = loadLocal();
+    let currentFilter = "all", activeRoom = null, tempStatus = "normal", tempDept = "프런트", docRef = null;
+
+    function getLocalISOString(min = 0) {
+      const d = new Date(Date.now() + min * 60000);
+      return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+    function formatShortDate(s) {
+      if (!s || !s.includes("T")) return s || "";
+      const [dt, tm] = s.split("T"), [, m, d] = dt.split("-");
+      return `${Number(m)}/${Number(d)} ${tm}`;
+    }
+    function setQuickTime(id, min) { document.getElementById(id).value = getLocalISOString(min); }
+    function isRoomCode(v) { return v && !["복층","EVL / 비상구","MERGE","교환실","방재실",""].includes(v); }
+
+    function checkVerticalRisers() {
+      const cols = Array(19).fill(0).map(() => []);
+      FLOOR_DATA.forEach(f => [f.upper, f.lower].forEach(r => r.forEach((c, i) => {
+        if (isRoomCode(c) && ["heat","water","both"].includes(roomStates[c]?.status)) cols[i].push(c);
+      })));
+      const alertEl = document.getElementById("riserAlert");
+      const warns = cols.map((rm, i) => rm.length >= 2 ? `L${i+1}라인(${rm.join(", ")})` : null).filter(Boolean);
+      alertEl.style.display = warns.length ? "block" : "none";
+      if (warns.length) alertEl.innerHTML = `⚡ <b>[수직 배관라인 연쇄 불량 감지]</b> 동일 수직 배관 열 2개 층 이상 동시 민원! 👉 ${warns.join(" / ")}`;
+      return cols;
+    }
+
+    function renderMap() {
+      const table = document.getElementById("resortMap");
+      const cols = checkVerticalRisers();
+      let html = `<thead><tr><th class="riser-header">층/라인</th>`;
+      for (let c = 0; c < 19; c++) html += `<th class="riser-header ${cols[c].length>=2?'warn':''}">${cols[c].length>=2?'⚠️L'+(c+1):'L'+(c+1)}</th>`;
+      html += `<th class="riser-header">비상구</th></tr></thead><tbody>`;
+
+      FLOOR_DATA.forEach((f, idx) => {
+        html += `<tr><td rowspan="2" class="floor-exit">${f.floor}<br>비상구</td>` + f.upper.map(renderCell).join("") + `<td rowspan="2" class="floor-exit">비<br>상<br>구</td></tr><tr>`;
+        f.lower.forEach(c => {
+          if (c !== "MERGE") html += (c === "EVL / 비상구") ? `<td colspan="2" class="facility-cell">EVL / 비상구</td>` : renderCell(c);
+        });
+        html += `</tr>` + (idx < FLOOR_DATA.length - 1 ? `<tr class="floor-gap"><td colspan="21"></td></tr>` : "");
+      });
+      table.innerHTML = html + `</tbody>`;
+      updateDashboard();
+    }
+
+    function renderCell(c) {
+      if (c === "") return `<td class="empty-cell"></td>`;
+      if (c === "복층") return `<td class="duplex-cell">복 층</td>`;
+      if (c === "교환실" || c === "방재실") return `<td class="facility-cell">${c}</td>`;
+      const info = roomStates[c] || { status:"normal" }, st = info.status || "normal";
+      const hasHist = (info.history && info.history.length > 0) || info.actionTime;
+      let dim = (currentFilter === "done") ? (!(st === "normal" && hasHist) ? "dimmed" : "") : (currentFilter !== "all" && st !== currentFilter ? "dimmed" : "");
+      const tm = st !== "normal" ? formatShortDate(info.actionTime || info.issueTime || info.updatedAt) : formatShortDate(info.actionTime);
+      return `<td class="room-cell ${st!=='normal'?'status-'+st:''} ${dim}" onclick="openRoomModal('${c}')">
+        ${st === "normal" && hasHist ? `<span class="hist-dot">✓</span>` : ""}
+        <span class="room-num">${c}</span>
+        ${st !== "normal" ? `<span class="room-badge">${STATUS_LABELS[st]}</span>` : ""}
+        ${tm ? `<span class="room-time">${tm}</span>` : ""}
+      </td>`;
+    }
+
+    function updateDashboard() {
+      const cnt = { all:0, heat:0, water:0, both:0, work:0, block:0, done:0 }, act = [], dn = [];
+      Object.entries(roomStates).forEach(([r, d]) => {
+        if (!d) return;
+        const st = d.status || "normal", hasHist = (d.history && d.history.length > 0) || d.actionTime;
+        if (st !== "normal") { cnt.all++; cnt[st] = (cnt[st] || 0) + 1; act.push({ room:r, ...d }); }
+        else if (hasHist) { cnt.done++; dn.push({ room:r, ...d }); }
+      });
+      Object.keys(cnt).forEach(k => { const el = document.getElementById(`cnt-${k}`); if (el) el.textContent = cnt[k]; });
+      const listEl = document.getElementById("issueList");
+      const target = currentFilter === "done" ? dn : (currentFilter === "all" ? act : act.filter(x => x.status === currentFilter));
+      if (!target.length) { listEl.innerHTML = `<div style="color:#64748b;font-size:0.84rem;padding:6px;">현재 등록된 내역이 없습니다.</div>`; return; }
+      target.sort((a,b) => (b.actionTime || b.issueTime || "").localeCompare(a.actionTime || a.issueTime || ""));
+      listEl.innerHTML = target.map(it => `
+        <div class="issue-card ${it.status || 'normal'}" onclick="openRoomModal('${it.room}')">
+          <div class="issue-card-top"><span>${it.room}호 <small style="color:#64748b;">(${it.dept || '프런트'})</small></span><span>${STATUS_LABELS[it.status || 'normal']} ✏️</span></div>
+          <div class="time-box">
+            <div class="time-row"><span style="color:#dc2626;font-weight:800;">🚨 문제발생:</span><b>${formatShortDate(it.issueTime || it.updatedAt) || '미기재'}</b></div>
+            <div class="time-row"><span style="color:#16a34a;font-weight:800;">🔧 조치/완료:</span><b>${formatShortDate(it.actionTime) || '대기중'}</b></div>
+          </div>
+          <div style="font-size:0.8rem;font-weight:600;">${it.memo || '(메모 없음)'}</div>
+        </div>`).join("");
+    }
+
+    function openRoomModal(r) {
+      activeRoom = r;
+      const cur = roomStates[r] || { status:"normal", dept:"프런트", memo:"", history:[] };
+      document.getElementById("modalRoomTitle").textContent = `${r}호 상태 · 일시 관리`;
+      selectStatus(cur.status || "normal");
+      selectDept(cur.dept || "프런트");
+      document.getElementById("memoInput").value = cur.memo || "";
+      document.getElementById("issueTimeInput").value = (cur.issueTime && cur.issueTime.includes("T")) ? cur.issueTime : getLocalISOString(0);
+      document.getElementById("actionTimeInput").value = (cur.actionTime && cur.actionTime.includes("T")) ? cur.actionTime : "";
+      renderRoomHistory(r);
+      document.getElementById("roomModal").classList.add("show");
+    }
+    function closeModal() { document.getElementById("roomModal").classList.remove("show"); }
+
+    function selectStatus(st) {
+      tempStatus = st;
+      ["normal","heat","water","both","work","block"].forEach(k => document.getElementById(`btn-${k}`).classList.toggle("selected", k === st));
+      const nowIso = getLocalISOString(0);
+      if (["heat","water","both","block"].includes(st) && !document.getElementById("issueTimeInput").value) document.getElementById("issueTimeInput").value = nowIso;
+      if (st === "work" || st === "normal") document.getElementById("actionTimeInput").value = nowIso;
+    }
+    function selectDept(d) {
+      tempDept = d;
+      ["프런트","에스와이(객실)","시설팀"].forEach(x => document.getElementById(`dept-${x}`).classList.toggle("active", x === d));
+    }
+    function addTag(t) { const b = document.getElementById("memoInput"); if (!b.value.includes(t)) b.value = (b.value ? b.value + " " : "") + t; }
+
+    async function syncToCloud() {
+      saveLocal(roomStates);
+      renderMap();
+      if (docRef) { try { await docRef.set({ rooms: roomStates }, { merge: true }); } catch(e) {} }
+    }
+
+    async function saveRoomState() {
+      if (!activeRoom) return;
+      const memo = document.getElementById("memoInput").value.trim();
+      const issueTime = document.getElementById("issueTimeInput").value;
+      const actionTime = document.getElementById("actionTimeInput").value;
+      const history = Array.isArray(roomStates[activeRoom]?.history) ? [...roomStates[activeRoom].history] : [];
+      history.unshift({ id:Date.now(), status:tempStatus, dept:tempDept, issueTime, actionTime, memo:memo || STATUS_LABELS[tempStatus] });
+      roomStates[activeRoom] = { status:tempStatus, dept:tempDept, memo, issueTime, actionTime, updatedAt:formatShortDate(actionTime || issueTime || getLocalISOString(0)), history };
+      closeModal();
+      await syncToCloud();
+    }
+
+    function renderRoomHistory(r) {
+      const listEl = document.getElementById("roomHistoryList"), hist = roomStates[r]?.history || [];
+      if (!hist.length) { listEl.innerHTML = `<div style="font-size:0.75rem;color:#94a3b8;">기록된 이전 이력이 없습니다.</div>`; return; }
+      listEl.innerHTML = hist.map((h, i) => `
+        <div class="hist-item">
+          <div class="hist-top">
+            <span><b>[${STATUS_LABELS[h.status] || h.status}]</b> <small>${h.dept || ''}</small></span>
+            <div>
+              <button type="button" class="hist-btn" onclick="toggleHistEdit(${i})">✏️ 수정</button>
+              <button type="button" class="hist-btn" style="color:#dc2626;" onclick="deleteHistItem(${i})">🗑️ 삭제</button>
+            </div>
+          </div>
+          <div style="font-size:0.72rem;color:#475569;">🚨발생: <b>${formatShortDate(h.issueTime) || '-'}</b> | 🔧조치: <b>${formatShortDate(h.actionTime) || '-'}</b></div>
+          <div style="font-weight:600;margin-top:2px;">${h.memo || ''}</div>
+          <div class="hist-edit-area" id="hist-edit-${i}">
+            <input type="datetime-local" id="edit-issue-${i}" class="dt-input" style="margin-bottom:4px;" value="${h.issueTime || ''}" />
+            <input type="datetime-local" id="edit-action-${i}" class="dt-input" style="margin-bottom:4px;" value="${h.actionTime || ''}" />
+            <input type="text" id="edit-memo-${i}" class="dt-input" style="margin-bottom:4px;" value="${(h.memo || '').replace(/"/g,'&quot;')}" />
+            <button type="button" class="btn" style="background:#0f172a;color:#fff;width:100%;" onclick="saveHistEdit(${i})">수정 저장</button>
+          </div>
+        </div>`).join("");
+    }
+    function toggleHistEdit(i) { const el = document.getElementById(`hist-edit-${i}`); el.style.display = el.style.display === "block" ? "none" : "block"; }
+
+    async function saveHistEdit(i) {
+      const d = roomStates[activeRoom]; if (!d || !d.history[i]) return;
+      d.history[i].issueTime = document.getElementById(`edit-issue-${i}`).value;
+      d.history[i].actionTime = document.getElementById(`edit-action-${i}`).value;
+      d.history[i].memo = document.getElementById(`edit-memo-${i}`).value.trim();
+      if (i === 0) Object.assign(d, { issueTime:d.history[0].issueTime, actionTime:d.history[0].actionTime, memo:d.history[0].memo, updatedAt:formatShortDate(d.history[0].actionTime || d.history[0].issueTime) });
+      renderRoomHistory(activeRoom);
+      await syncToCloud();
+    }
+
+    async function deleteHistItem(i) {
+      if (!confirm("이 기록을 삭제하시겠습니까?")) return;
+      const d = roomStates[activeRoom]; if (!d || !d.history) return;
+      d.history.splice(i, 1);
+      if (d.history.length) { Object.assign(d, d.history[0]); renderRoomHistory(activeRoom); }
+      else { roomStates[activeRoom] = firebase.firestore.FieldValue.delete(); delete roomStates[activeRoom]; closeModal(); }
+      await syncToCloud();
+    }
+
+    async function clearRoomCompletely() {
+      if (!activeRoom || !confirm(`${activeRoom}호 기록을 모두 초기화하시겠습니까?`)) return;
+      if (docRef) { try { await docRef.update({ [`rooms.${activeRoom}`]: firebase.firestore.FieldValue.delete() }); } catch(e) {} }
+      delete roomStates[activeRoom]; saveLocal(roomStates); renderMap(); closeModal();
+    }
+
+    function setFilter(f) {
+      currentFilter = f;
+      ["all","heat","water","both","work","block","done"].forEach(k => document.getElementById(`filter-${k}`).classList.toggle("active", k === f));
+      renderMap();
+    }
+
+    function copyKakaoSummary() {
+      const g = { both:[], heat:[], water:[], work:[], block:[] };
+      Object.entries(roomStates).forEach(([r, d]) => { if (d && g[d.status]) g[d.status].push(`${r}호[${formatShortDate(d.actionTime || d.issueTime) || '-'}${d.memo ? ' / '+d.memo : ''}]`); });
+      const now = new Date();
+      const txt = `[PINE RESORTEL 난방·온수 브리핑]\n⏰ ${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}\n\n🚨 난방+온수: ${g.both.join(", ")||"없음"}\n🔥 난방불량: ${g.heat.join(", ")||"없음"}\n💧 온수불량: ${g.water.join(", ")||"없음"}\n🔧 조치중: ${g.work.join(", ")||"없음"}\n⛔ 방막기: ${g.block.join(", ")||"없음"}`;
+      navigator.clipboard.writeText(txt).then(() => alert("카톡 공유용 브리핑이 복사되었습니다!"));
+    }
+
+    function exportCSV() {
+      let csv = "\uFEFF객실번호,상태,부서,문제발생일시,조치완료일시,메모\n";
+      Object.entries(roomStates).forEach(([r, d]) => { if (d && d.status) csv += `"${r}","${STATUS_LABELS[d.status]}","${d.dept||''}","${formatShortDate(d.issueTime)}","${formatShortDate(d.actionTime)}","${(d.memo||'').replace(/"/g,'""')}"\n`; });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type:"text/csv;charset=utf-8;" })); a.download = `파인리조텔_난방온수.csv`; a.click();
+    }
+
+    // 1순위: 화면 열리자마자 객실 배치도 즉시 출력 (절대 빈 화면 안 뜸)
+    renderMap();
+
+    // 2순위: 검증된 yustel-manager 파이어스토어 실시간 연동
+    try {
+      firebase.initializeApp({
+        apiKey: "AIzaSyBQTbPkV5ry_HFArbT4yiMIzIdibpnLYU4",
+        authDomain: "yustel-manager.firebaseapp.com",
+        projectId: "yustel-manager",
+        storageBucket: "yustel-manager.firebasestorage.app",
+        messagingSenderId: "585662351877",
+        appId: "1:585662351877:web:2b26223e4f98714406a6c"
+      });
+      docRef = firebase.firestore().collection("facility_board").doc("pine_heating_rooms");
+      docRef.onSnapshot(snap => {
+        if (snap.exists && snap.data().rooms) {
+          roomStates = snap.data().rooms;
+          saveLocal(roomStates);
+          renderMap();
+        }
+        document.getElementById("syncBadge").textContent = "🟢 실시간 동기화됨 (프런트·에스와이·시설팀)";
+      }, () => {
+        document.getElementById("syncBadge").textContent = "🟡 로컬 저장모드";
+      });
+    } catch(e) {
+      document.getElementById("syncBadge").textContent = "🟡 로컬 저장모드";
+    }
+  </script>
+</body>
+</html>
