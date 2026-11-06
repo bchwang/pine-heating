@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5" />
+  <title>PINE RESORTEL 난방·온수 실시간 통합 상황판</title>
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #0f172a;
+      --border: #cbd5e1;
+      --normal: #ffffff;
+      --heat: #ffedd5;
+      --heat-border: #f97316;
+      --heat-text: #9a3412;
+      --water: #dbeafe;
+      --water-border: #2563eb;
+      --water-text: #1e40af;
+      --both: #fee2e2;
+      --both-border: #dc2626;
+      --both-text: #991b1b;
+      --work: #fef9c3;
+      --work-border: #ca8a04;
+      --work-text: #854d0e;
+      --block: #e2e8f0;
+      --block-border: #475569;
+      --block-text: #334155;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 12px; }
+
+    /* 상단 헤더 및 요약 바 */
+    .header {
+      background: #1e293b; color: #fff; padding: 14px 18px; border-radius: 12px;
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
+      margin-bottom: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .header-title h1 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; }
+    .header-title p { font-size: 0.8rem; color: #94a3b8; margin-top: 2px; }
+    .sync-badge {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem;
+      padding: 4px 10px; border-radius: 999px; background: #334155; color: #38bdf8; font-weight: 600;
+    }
+
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+    }
+    .stats-group { display: flex; flex-wrap: wrap; gap: 6px; }
+    .stat-pill {
+      cursor: pointer; padding: 7px 12px; border-radius: 8px; font-size: 0.82rem; font-weight: 700;
+      border: 2px solid transparent; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      display: flex; align-items: center; gap: 5px; transition: 0.15s;
+    }
+    .stat-pill.active { border-color: #0f172a; transform: translateY(-1px); }
+    .stat-pill.heat { background: var(--heat); color: var(--heat-text); }
+    .stat-pill.water { background: var(--water); color: var(--water-text); }
+    .stat-pill.both { background: var(--both); color: var(--both-text); }
+    .stat-pill.work { background: var(--work); color: var(--work-text); }
+    .stat-pill.block { background: var(--block); color: var(--block-text); }
+
+    .action-group { display: flex; flex-wrap: wrap; gap: 6px; }
+    .btn {
+      cursor: pointer; border: none; border-radius: 8px; padding: 8px 12px;
+      font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;
+      background: #fff; color: #1e293b; border: 1px solid #cbd5e1; transition: 0.15s;
+    }
+    .btn:hover { background: #f8fafc; }
+    .btn-kakao { background: #fee500; color: #191919; border-color: #eab308; }
+    .btn-excel { background: #16a34a; color: #fff; border-color: #15803d; }
+    .btn-cloud { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+
+    /* 수직 배관 라인 경보 배너 */
+    .riser-alert {
+      display: none; background: #fff1f2; border: 2px solid #f43f5e; color: #9f1239;
+      padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 0.85rem; font-weight: 700;
+    }
+
+    /* 객실 배치도 테이블 영역 */
+    .map-container {
+      background: var(--card); border-radius: 12px; padding: 12px;
+      overflow-x: auto; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 14px;
+    }
+    table.resort-map {
+      width: 100%; min-width: 1180px; border-collapse: collapse; table-layout: fixed;
+    }
+    table.resort-map th, table.resort-map td {
+      border: 1px solid #cbd5e1; text-align: center; vertical-align: middle;
+      height: 38px; font-size: 0.78rem; position: relative; user-select: none;
+    }
+    .riser-header {
+      background: #f8fafc; color: #64748b; font-size: 0.7rem; height: 24px !important; font-weight: 700;
+    }
+    .riser-header.warn {
+      background: #ef4444 !important; color: #fff !important; animation: pulse 1.2s infinite;
+    }
+    .floor-exit {
+      background: #e2e8f0; font-weight: 800; color: #334155; width: 54px; font-size: 0.75rem; line-height: 1.2;
+    }
+    .floor-gap td { height: 8px !important; background: #f1f5f9; border: none !important; }
+    .facility-cell {
+      background: #f1f5f9; color: #64748b; font-weight: 700; font-size: 0.72rem;
+    }
+    .duplex-cell {
+      background: #f8fafc; color: #94a3b8; font-size: 0.72rem;
+    }
+    .empty-cell { background: #f8fafc; border-color: #e2e8f0; }
+
+    /* 객실 셀 스타일 */
+    .room-cell {
+      cursor: pointer; background: var(--normal); font-weight: 700; color: #1e293b;
+      transition: transform 0.1s, box-shadow 0.1s; padding: 2px;
+    }
+    .room-cell:hover {
+      z-index: 5; transform: scale(1.06); box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+      outline: 2px solid #0f172a;
+    }
+    .room-num { display: block; font-size: 0.78rem; line-height: 1.1; }
+    .room-badge {
+      display: block; font-size: 0.63rem; font-weight: 800; margin-top: 1px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* 상태별 색상 */
+    .status-heat { background: var(--heat) !important; color: var(--heat-text) !important; border: 2px solid var(--heat-border) !important; }
+    .status-water { background: var(--water) !important; color: var(--water-text) !important; border: 2px solid var(--water-border) !important; }
+    .status-both {
+      background: var(--both) !important; color: var(--both-text) !important;
+      border: 2px solid var(--both-border) !important; animation: pulse 1.3s infinite;
+    }
+    .status-work { background: var(--work) !important; color: var(--work-text) !important; border: 2px solid var(--work-border) !important; }
+    .status-block {
+      background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 5px, #cbd5e1 5px, #cbd5e1 10px) !important;
+      color: var(--block-text) !important; border: 2px solid var(--block-border) !important;
+    }
+    .dimmed { opacity: 0.18; pointer-events: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.65; }
+    }
+
+    /* 하단 실시간 민원·조치 현황 리스트 */
+    .issue-panel {
+      background: var(--card); border-radius: 12px; padding: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .issue-panel h2 { font-size: 1rem; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .issue-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+    .issue-card {
+      border: 1px solid #cbd5e1; border-left: 5px solid #64748b; border-radius: 8px;
+      padding: 10px 12px; background: #fff; cursor: pointer;
+    }
+    .issue-card.heat { border-left-color: var(--heat-border); }
+    .issue-card.water { border-left-color: var(--water-border); }
+    .issue-card.both { border-left-color: var(--both-border); }
+    .issue-card.work { border-left-color: var(--work-border); }
+    .issue-card.block { border-left-color: var(--block-border); }
+    .issue-card-top { display: flex; justify-content: space-between; font-weight: 800; font-size: 0.9rem; margin-bottom: 4px; }
+    .issue-card-meta { font-size: 0.75rem; color: #64748b; margin-bottom: 4px; }
+    .issue-card-memo { font-size: 0.82rem; color: #1e293b; background: #f8fafc; padding: 5px 8px; border-radius: 6px; }
+
+    /* 모달 팝업 */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.6);
+      z-index: 100; justify-content: center; align-items: center; padding: 14px;
+    }
+    .modal-backdrop.show { display: flex; }
+    .modal {
+      background: #fff; border-radius: 14px; width: 100%; max-width: 440px;
+      padding: 18px; box-shadow: 0 12px 32px rgba(0,0,0,0.25); max-height: 92vh; overflow-y: auto;
+    }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .modal-header h3 { font-size: 1.2rem; font-weight: 800; }
+    .close-btn { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #64748b; }
+
+    .section-label { font-size: 0.78rem; font-weight: 700; color: #475569; margin: 10px 0 6px; }
+    .status-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .status-btn {
+      padding: 11px 8px; border-radius: 10px; border: 2px solid #cbd5e1; background: #fff;
+      font-weight: 800; font-size: 0.88rem; cursor: pointer; text-align: center;
+    }
+    .status-btn.selected { outline: 3px solid #0f172a; transform: scale(0.99); }
+    .status-btn.normal { grid-column: span 2; background: #f0fdf4; border-color: #22c55e; color: #15803d; }
+    .status-btn.heat { background: var(--heat); border-color: var(--heat-border); color: var(--heat-text); }
+    .status-btn.water { background: var(--water); border-color: var(--water-border); color: var(--water-text); }
+    .status-btn.both { background: var(--both); border-color: var(--both-border); color: var(--both-text); }
+    .status-btn.work { background: var(--work); border-color: var(--work-border); color: var(--work-text); }
+    .status-btn.block { grid-column: span 2; background: var(--block); border-color: var(--block-border); color: var(--block-text); }
+
+    .dept-group, .tag-group { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      padding: 6px 10px; border-radius: 999px; font-size: 0.76rem; font-weight: 700;
+      border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer;
+    }
+    .chip.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+
+    .memo-input {
+      width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;
+      font-size: 0.88rem; margin-top: 6px; resize: vertical; min-height: 60px;
+    }
+    .save-btn {
+      width: 100%; margin-top: 14px; padding: 12px; border: none; border-radius: 10px;
+      background: #0f172a; color: #fff; font-size: 0.95rem; font-weight: 800; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 상단 헤더 -->
+  <div class="header">
+    <div class="header-title">
+      <h1>🏢 PINE RESORTEL 난방·온수 실시간 통합 상황판</h1>
+      <p>프런트 · 에스와이(객실팀) · 시설팀 실시간 공유 시스템 (객실 터치 시 즉시 상태 변경)</p>
+    </div>
+    <div>
+      <span id="syncBadge" class="sync-badge">🟢 실시간 공유 대기중 (로컬+클라우드)</span>
+    </div>
+  </div>
+
+  <!-- 필터 및 공유 툴바 -->
+  <div class="toolbar">
+    <div class="stats-group">
+      <div class="stat-pill active" onclick="setFilter('all')" id="filter-all">전체 보기 <span id="cnt-all">0</span></div>
+      <div class="stat-pill heat" onclick="setFilter('heat')" id="filter-heat">🔥 난방불량 <span id="cnt-heat">0</span></div>
+      <div class="stat-pill water" onclick="setFilter('water')" id="filter-water">💧 온수불량 <span id="cnt-water">0</span></div>
+      <div class="stat-pill both" onclick="setFilter('both')" id="filter-both">🚨 난방+온수 <span id="cnt-both">0</span></div>
+      <div class="stat-pill work" onclick="setFilter('work')" id="filter-work">🔧 조치중 <span id="cnt-work">0</span></div>
+      <div class="stat-pill block" onclick="setFilter('block')" id="filter-block">⛔ 방막기(O.O.O) <span id="cnt-block">0</span></div>
+    </div>
+    <div class="action-group">
+      <button class="btn btn-kakao" onclick="copyKakaoSummary()">💬 카톡 단톡방 공유복사</button>
+      <button class="btn btn-excel" onclick="exportCSV()">📊 엑셀(CSV) 저장</button>
+      <button class="btn btn-cloud" onclick="openCloudModal()">☁️ 인터넷 실시간 연동설정</button>
+    </div>
+  </div>
+
+  <!-- 수직 배관 라인 경보 -->
+  <div id="riserAlert" class="riser-alert"></div>
+
+  <!-- 엑셀 원본 구조 100% 반영 배치도 -->
+  <div class="map-container">
+    <table class="resort-map" id="resortMap"></table>
+  </div>
+
+  <!-- 하단 문제 객실 실시간 브리핑 보드 -->
+  <div class="issue-panel">
+    <h2>
+      <span>📋 현재 민원 · 조치중 객실 목록</span>
+      <span style="font-size:0.78rem; color:#64748b; font-weight:500;">카드를 클릭하면 바로 수정할 수 있습니다</span>
+    </h2>
+    <div id="issueList" class="issue-list"></div>
+  </div>
+
+  <!-- 객실 상태 변경 모달 -->
+  <div class="modal-backdrop" id="roomModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalRoomTitle">808호 상태 관리</h3>
+        <button class="close-btn" onclick="closeModal()">×</button>
+      </div>
+
+      <div class="section-label">1. 현재 상태 선택 (원터치)</div>
+      <div class="status-grid">
+        <button class="status-btn heat" onclick="selectStatus('heat')" id="btn-heat">🔥 난방 안됨</button>
+        <button class="status-btn water" onclick="selectStatus('water')" id="btn-water">💧 온수 안됨</button>
+        <button class="status-btn both" onclick="selectStatus('both')" id="btn-both">🚨 난방+온수 둘다 안됨</button>
+        <button class="status-btn work" onclick="selectStatus('work')" id="btn-work">🔧 시설팀 조치중/예열중</button>
+        <button class="status-btn block" onclick="selectStatus('block')" id="btn-block">⛔ 판매보류 / 방막기 (프런트 배정금지)</button>
+        <button class="status-btn normal" onclick="selectStatus('normal')" id="btn-normal">✅ 조치 완료 (정상 객실로 복구)</button>
+      </div>
+
+      <div class="section-label">2. 등록/확인 부서</div>
+      <div class="dept-group">
+        <span class="chip active" onclick="selectDept('프런트')" id="dept-프런트">프런트</span>
+        <span class="chip" onclick="selectDept('에스와이(객실)')" id="dept-에스와이(객실)">에스와이(객실)</span>
+        <span class="chip" onclick="selectDept('시설팀')" id="dept-시설팀">시설팀</span>
+      </div>
+
+      <div class="section-label">3. 빠른 증상·조치 태그 (누르면 메모에 자동 입력)</div>
+      <div class="tag-group">
+        <span class="chip" onclick="addTag('#바닥냉골')">#바닥냉골</span>
+        <span class="chip" onclick="addTag('#온수미지근')">#온수미지근</span>
+        <span class="chip" onclick="addTag('#에어참(배관소음)')">#에어참(배관소음)</span>
+        <span class="chip" onclick="addTag('#온도조절기불량')">#온도조절기불량</span>
+        <span class="chip" onclick="addTag('#구동기/밸브점검')">#구동기/밸브점검</span>
+        <span class="chip" onclick="addTag('#룸체인지완료')">#룸체인지완료</span>
+        <span class="chip" onclick="addTag('#에어빼기완료(예열중)')">#에어빼기완료(예열중)</span>
+      </div>
+
+      <div class="section-label">4. 공유 메모 (프런트·에스와이·시설팀 전달사항)</div>
+      <textarea id="memoInput" class="memo-input" placeholder="예: 투숙객 클레임으로 710호 이동 조치 / 시설팀 에어빼기 후 바닥 온도 상승 확인중"></textarea>
+
+      <button class="save-btn" onclick="saveRoomState()">저장 및 전 부서 공유하기</button>
+    </div>
+  </div>
+
+  <!-- 클라우드(Firebase) 실시간 공유 설정 모달 -->
+  <div class="modal-backdrop" id="cloudModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>☁️ 인터넷 실시간 공유 설정</h3>
+        <button class="close-btn" onclick="closeCloudModal()">×</button>
+      </div>
+      <p style="font-size:0.82rem; color:#475569; line-height:1.5; margin-bottom:10px;">
+        기존에 사용하시는 <b>Firebase Realtime Database URL</b>(예: <code>https://프로젝트명-default-rtdb.firebaseio.com</code>)을 입력하면 에스와이·프런트·시설팀 스마트폰과 PC가 0.1초 단위로 자동 동기화됩니다.
+      </p>
+      <input type="text" id="firebaseUrlInput" class="memo-input" style="min-height:42px;" placeholder="https://your-project-default-rtdb.firebaseio.com" />
+      <button class="save-btn" onclick="saveFirebaseUrl()">실시간 클라우드 연결 적용</button>
+    </div>
+  </div>
+
+  <script>
+    // 1. PINE RESORTEL 객실 배치도 원본 데이터 (10F ~ 2F)
+    const FLOOR_DATA = [
+      {
+        floor: "10F",
+        upper: ["1005S","복층","복층","1006M","1007M","1008S","1009S","1010S","1011S","1012S","1013S","1014S","1015S","1016S","복층","복층","","1017L",""],
+        lower: ["1004S","복층","1003X","1002M","1001M","EVL / 비상구","MERGE","1026S","1025S","1024S","1023S","1022S","1021S","1020S","1019S","복층","복층","1018L",""]
+      },
+      {
+        floor: "9F",
+        upper: ["복층","905MD","906MD","907","908","909","910","911","912","913","914","915","916","917","918MD","919MD","","복층","복층"],
+        lower: ["복층","904LD","903","902","901","EVL / 비상구","MERGE","929","928","927","926","925","924","923","922","921MD","920MD","복층","복층"]
+      },
+      {
+        floor: "8F",
+        upper: ["806LD","807","808","809","810","811","812","813","814","815","816","817","818","819","820","821","","822MD","823MD"],
+        lower: ["805LD","804","803","802","801","EVL / 비상구","MERGE","835","834","833","832","831","830","829","828","827","826","825MD","824MD"]
+      },
+      {
+        floor: "7F",
+        upper: ["706","707","708","709","710","711","712","713","714","715","716","717","718","719","720","721","","722","723"],
+        lower: ["705","704","703","702","701","EVL / 비상구","MERGE","735","734","733","732","731","730","729","728","727","726","725","724"]
+      },
+      {
+        floor: "6F",
+        upper: ["606","607","608","609","610","611","612","613","614","615","616","617","618","619","620","621","","622","623"],
+        lower: ["605","604","603","602","601","EVL / 비상구","MERGE","635","634","633","632","631","630","629","628","627","626","625","624"]
+      },
+      {
+        floor: "5F",
+        upper: ["506","507","508","509","510","511","512","513","514","515","516","517","518","519","520","521","","522","523"],
+        lower: ["505","504","503","502","501","EVL / 비상구","MERGE","535","534","533","532","531","530","529","528","527","526","525","524"]
+      },
+      {
+        floor: "4F",
+        upper: ["406","407","408","409","410","411","412","413","414","415","416","417","418","419","420","421","","422","423"],
+        lower: ["405","404","403","402","401","EVL / 비상구","MERGE","435","434","433","432","431","430","429","428","427","426","425","424"]
+      },
+      {
+        floor: "3F",
+        upper: ["306","307","308","309","310","311","312","313","314","315","316","317","318","319","320","321","","322","323"],
+        lower: ["305","304","303","302","301","EVL / 비상구","MERGE","335","334","333","332","331","330","329","328","327","326","325","324"]
+      },
+      {
+        floor: "2F",
+        upper: ["206","207","208","209","210","교환실","방재실","211","212","213","214","215","216","217","218M","219","","220","221"],
+        lower: ["205","204","203","202","201","EVL / 비상구","MERGE","233","232","231","230","229","228","227","226","225M","224","223","222"]
+      }
+    ];
+
+    const STATUS_LABELS = {
+      normal: "정상",
+      heat: "🔥난방불량",
+      water: "💧온수불량",
+      both: "🚨난방+온수",
+      work: "🔧조치중",
+      block: "⛔방막기"
+    };
+
+    let roomStates = JSON.parse(localStorage.getItem("pine_resortel_rooms") || "{}");
+    let firebaseBaseUrl = localStorage.getItem("pine_firebase_url") || "";
+    let currentFilter = "all";
+    let activeRoom = null;
+    let tempStatus = "normal";
+    let tempDept = "프런트";
+
+    function isRoomCode(val) {
+      return val && !["복층", "EVL / 비상구", "MERGE", "교환실", "방재실", ""].includes(val);
+    }
+
+    // 2. 수직 배관(입상관) 라인 동시 불량 감지
+    function checkVerticalRisers() {
+      const colIssues = Array(19).fill(0).map(() => []);
+      FLOOR_DATA.forEach(f => {
+        [f.upper, f.lower].forEach(row => {
+          row.forEach((cell, colIdx) => {
+            if (isRoomCode(cell)) {
+              const st = roomStates[cell]?.status;
+              if (st === "heat" || st === "water" || st === "both") {
+                colIssues[colIdx].push(cell);
+              }
+            }
+          });
+        });
+      });
+
+      const alertEl = document.getElementById("riserAlert");
+      const warnLines = [];
+      colIssues.forEach((rooms, idx) => {
+        if (rooms.length >= 2) {
+          warnLines.push(`L${idx + 1}라인(${rooms.join(", ")})`);
+        }
+      });
+
+      if (warnLines.length > 0) {
+        alertEl.style.display = "block";
+        alertEl.innerHTML = `⚡ <b>[수직 배관라인 연쇄 불량 감지]</b> 동일 수직 배관 열에서 2개 층 이상 동시 민원이 발생했습니다! 메인 입상관 에어포켓·밸브 점검 요망 👉 ${warnLines.join(" / ")}`;
+      } else {
+        alertEl.style.display = "none";
+      }
+      return colIssues;
+    }
+
+    // 3. 배치도 렌더링
+    function renderMap() {
+      const table = document.getElementById("resortMap");
+      const colIssues = checkVerticalRisers();
+      let html = `<thead><tr><th class="riser-header">층/라인</th>`;
+      for (let c = 0; c < 19; c++) {
+        const isWarn = colIssues[c].length >= 2;
+        html += `<th class="riser-header ${isWarn ? 'warn' : ''}">${isWarn ? '⚠️L'+(c+1) : 'L'+(c+1)}</th>`;
+      }
+      html += `<th class="riser-header">비상구</th></tr></thead><tbody>`;
+
+      FLOOR_DATA.forEach((f, fIdx) => {
+        // 상단 행
+        html += `<tr><td rowspan="2" class="floor-exit">${f.floor}<br>비상구</td>`;
+        f.upper.forEach(cell => {
+          html += renderCell(cell);
+        });
+        html += `<td rowspan="2" class="floor-exit">비<br>상<br>구</td></tr>`;
+
+        // 하단 행
+        html += `<tr>`;
+        f.lower.forEach(cell => {
+          if (cell === "MERGE") return;
+          if (cell === "EVL / 비상구") {
+            html += `<td colspan="2" class="facility-cell">EVL / 비상구</td>`;
+          } else {
+            html += renderCell(cell);
+          }
+        });
+        html += `</tr>`;
+
+        if (fIdx < FLOOR_DATA.length - 1) {
+          html += `<tr class="floor-gap"><td colspan="21"></td></tr>`;
+        }
+      });
+
+      html += `</tbody>`;
+      table.innerHTML = html;
+      updateDashboard();
+    }
+
+    function renderCell(cell) {
+      if (cell === "") return `<td class="empty-cell"></td>`;
+      if (cell === "복층") return `<td class="duplex-cell">복 층</td>`;
+      if (cell === "교환실" || cell === "방재실") return `<td class="facility-cell">${cell}</td>`;
+
+      const info = roomStates[cell] || { status: "normal" };
+      const st = info.status || "normal";
+      const statusClass = st !== "normal" ? `status-${st}` : "";
+      const dimClass = (currentFilter !== "all" && st !== currentFilter) ? "dimmed" : "";
+      const badgeText = st !== "normal" ? STATUS_LABELS[st] : "";
+
+      return `<td class="room-cell ${statusClass} ${dimClass}" onclick="openRoomModal('${cell}')" title="${info.memo || ''}">
+        <span class="room-num">${cell}</span>
+        ${badgeText ? `<span class="room-badge">${badgeText}</span>` : ""}
+      </td>`;
+    }
+
+    // 4. 통계 및 하단 민원 카드 업데이트
+    function updateDashboard() {
+      const counts = { all: 0, heat: 0, water: 0, both: 0, work: 0, block: 0 };
+      const activeEntries = [];
+
+      Object.entries(roomStates).forEach(([room, data]) => {
+        if (data && data.status && data.status !== "normal") {
+          counts.all++;
+          counts[data.status] = (counts[data.status] || 0) + 1;
+          activeEntries.push({ room, ...data });
+        }
+      });
+
+      Object.keys(counts).forEach(k => {
+        const el = document.getElementById(`cnt-${k}`);
+        if (el) el.textContent = counts[k];
+      });
+
+      const listEl = document.getElementById("issueList");
+      if (activeEntries.length === 0) {
+        listEl.innerHTML = `<div style="color:#64748b; font-size:0.85rem; padding:8px;">현재 등록된 난방·온수 불량 객실이 없습니다.</div>`;
+        return;
+      }
+
+      activeEntries.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+      listEl.innerHTML = activeEntries.map(item => `
+        <div class="issue-card ${item.status}" onclick="openRoomModal('${item.room}')">
+          <div class="issue-card-top">
+            <span>${item.room}호</span>
+            <span>${STATUS_LABELS[item.status]}</span>
+          </div>
+          <div class="issue-card-meta">등록: ${item.dept || '미지정'} · ${item.updatedAt || ''}</div>
+          <div class="issue-card-memo">${item.memo ? item.memo : '(메모 없음)'}</div>
+        </div>
+      `).join("");
+    }
+
+    // 5. 모달 조작 함수
+    function openRoomModal(room) {
+      activeRoom = room;
+      const cur = roomStates[room] || { status: "normal", dept: "프런트", memo: "" };
+      document.getElementById("modalRoomTitle").textContent = `${room}호 난방·온수 상태 관리`;
+      selectStatus(cur.status || "normal");
+      selectDept(cur.dept || "프런트");
+      document.getElementById("memoInput").value = cur.memo || "";
+      document.getElementById("roomModal").classList.add("show");
+    }
+
+    function closeModal() {
+      document.getElementById("roomModal").classList.remove("show");
+    }
+
+    function selectStatus(st) {
+      tempStatus = st;
+      ["normal", "heat", "water", "both", "work", "block"].forEach(k => {
+        document.getElementById(`btn-${k}`).classList.toggle("selected", k === st);
+      });
+    }
+
+    function selectDept(dept) {
+      tempDept = dept;
+      ["프런트", "에스와이(객실)", "시설팀"].forEach(d => {
+        document.getElementById(`dept-${d}`).classList.toggle("active", d === dept);
+      });
+    }
+
+    function addTag(tag) {
+      const box = document.getElementById("memoInput");
+      if (!box.value.includes(tag)) {
+        box.value = (box.value ? box.value + " " : "") + tag;
+      }
+    }
+
+    async function saveRoomState() {
+      if (!activeRoom) return;
+      const memo = document.getElementById("memoInput").value.trim();
+      const now = new Date();
+      const timeStr = `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+      if (tempStatus === "normal") {
+        delete roomStates[activeRoom];
+      } else {
+        roomStates[activeRoom] = {
+          status: tempStatus,
+          dept: tempDept,
+          memo: memo,
+          updatedAt: timeStr
+        };
+      }
+
+      localStorage.setItem("pine_resortel_rooms", JSON.stringify(roomStates));
+      closeModal();
+      renderMap();
+
+      if (firebaseBaseUrl) {
+        try {
+          await fetch(`${firebaseBaseUrl.replace(/\/$/, "")}/pine_resortel_rooms.json`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(roomStates)
+          });
+        } catch (e) {
+          console.error("클라우드 동기화 오류:", e);
+        }
+      }
+    }
+
+    function setFilter(f) {
+      currentFilter = f;
+      ["all", "heat", "water", "both", "work", "block"].forEach(k => {
+        document.getElementById(`filter-${k}`).classList.toggle("active", k === f);
+      });
+      renderMap();
+    }
+
+    // 6. 카카오톡 공유용 텍스트 1초 복사
+    function copyKakaoSummary() {
+      const groups = { both: [], heat: [], water: [], work: [], block: [] };
+      Object.entries(roomStates).forEach(([r, d]) => {
+        if (d && groups[d.status]) {
+          groups[d.status].push(`${r}호${d.memo ? '('+d.memo+')' : ''}`);
+        }
+      });
+
+      const now = new Date();
+      let txt = `[PINE RESORTEL 난방·온수 현황 공유]\n⏰ 기준: ${now.getMonth()+1}/${now.getDate()} ${now.getHours()}시 ${now.getMinutes()}분\n\n`;
+      txt += `🚨 난방+온수 동시불량: ${groups.both.length ? groups.both.join(", ") : "없음"}\n`;
+      txt += `🔥 난방불량: ${groups.heat.length ? groups.heat.join(", ") : "없음"}\n`;
+      txt += `💧 온수불량: ${groups.water.length ? groups.water.join(", ") : "없음"}\n`;
+      txt += `🔧 시설팀 조치/예열중: ${groups.work.length ? groups.work.join(", ") : "없음"}\n`;
+      txt += `⛔ 방막기(배정금지): ${groups.block.length ? groups.block.join(", ") : "없음"}`;
+
+      navigator.clipboard.writeText(txt).then(() => {
+        alert("카카오톡 단톡방 공유용 브리핑이 복사되었습니다!\n채팅방에 붙여넣기(Ctrl+V) 하세요.");
+      });
+    }
+
+    // 7. 엑셀(CSV) 내보내기
+    function exportCSV() {
+      let csv = "\uFEFF객실번호,상태,등록부서,업데이트시간,상세메모\n";
+      Object.entries(roomStates).forEach(([r, d]) => {
+        if (d && d.status !== "normal") {
+          csv += `"${r}","${STATUS_LABELS[d.status]}","${d.dept || ''}","${d.updatedAt || ''}","${(d.memo || '').replace(/"/g, '""')}"\n`;
+        }
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `파인리조텔_난방온수현황_${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+    }
+
+    // 8. Firebase 클라우드 실시간 동기화 (폴링 + REST API 방식으로 별도 SDK 없이도 즉시 작동)
+    function openCloudModal() {
+      document.getElementById("firebaseUrlInput").value = firebaseBaseUrl;
+      document.getElementById("cloudModal").classList.add("show");
+    }
+    function closeCloudModal() {
+      document.getElementById("cloudModal").classList.remove("show");
+    }
+    function saveFirebaseUrl() {
+      firebaseBaseUrl = document.getElementById("firebaseUrlInput").value.trim();
+      localStorage.setItem("pine_firebase_url", firebaseBaseUrl);
+      closeCloudModal();
+      syncFromCloud();
+    }
+
+    async function syncFromCloud() {
+      const badge = document.getElementById("syncBadge");
+      if (!firebaseBaseUrl) {
+        badge.textContent = "🟡 로컬 저장모드 (클라우드 URL 미설정)";
+        return;
+      }
+      try {
+        const res = await fetch(`${firebaseBaseUrl.replace(/\/$/, "")}/pine_resortel_rooms.json`);
+        if (res.ok) {
+          const data = await res.json();
+          roomStates = data || {};
+          localStorage.setItem("pine_resortel_rooms", JSON.stringify(roomStates));
+          renderMap();
+          badge.textContent = "🟢 실시간 클라우드 동기화중 (프런트·에스와이·시설팀)";
+        }
+      } catch (e) {
+        badge.textContent = "🔴 클라우드 연결 확인 필요";
+      }
+    }
+
+    // 3초 주기 실시간 동기화 및 초기 실행
+    setInterval(() => { if (firebaseBaseUrl) syncFromCloud(); }, 3000);
+    renderMap();
+    syncFromCloud();
+  </script>
+</body>
+</html>
