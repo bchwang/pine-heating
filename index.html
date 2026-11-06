@@ -372,7 +372,7 @@
     };
 
     let roomStates = JSON.parse(localStorage.getItem("pine_resortel_rooms") || "{}");
-    let firebaseBaseUrl = localStorage.getItem("pine_firebase_url") || "";
+    let firebaseBaseUrl = localStorage.getItem("pine_firebase_url") || "https://yustel-manager-default-rtdb.firebaseio.com";
     let currentFilter = "all";
     let activeRoom = null;
     let tempStatus = "normal";
