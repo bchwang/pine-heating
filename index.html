@@ -3,72 +3,163 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>PINE RESORTEL 난방·온수 실시간 통합 상황판</title>
   <style>
     :root {
-      --bg: #f1f5f9;
-      --card: #ffffff;
-      --text: #0f172a;
-      --border: #cbd5e1;
-      --normal: #ffffff;
-      --heat: #ffedd5; --heat-border: #f97316; --heat-text: #9a3412;
-      --water: #dbeafe; --water-border: #2563eb; --water-text: #1e40af;
-      --both: #fee2e2; --both-border: #dc2626; --both-text: #991b1b;
-      --work: #fef9c3; --work-border: #ca8a04; --work-text: #854d0e;
-      --block: #e2e8f0; --block-border: #475569; --block-text: #334155;
-      --done: #dcfce7; --done-border: #16a34a; --done-text: #166534;
+      --bg:#f1f5f9; --card:#fff; --text:#0f172a;
+      --heat:#ffedd5; --heat-b:#f97316; --heat-t:#9a3412;
+      --water:#dbeafe; --water-b:#2563eb; --water-t:#1e40af;
+      --both:#fee2e2; --both-b:#dc2626; --both-t:#991b1b;
+      --work:#fef9c3; --work-b:#ca8a04; --work-t:#854d0e;
+      --block:#e2e8f0; --block-b:#475569; --block-t:#334155;
+      --done:#dcfce7; --done-b:#16a34a; --done-t:#166534;
     }
+    * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic",sans-serif; -webkit-text-size-adjust:100%; }
+    body { background:var(--bg); color:var(--text); padding:10px; }
+    .header { background:#1e293b; color:#fff; padding:12px 16px; border-radius:12px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
+    .header h1 { font-size:1.15rem; font-weight:800; }
+    .header p { font-size:0.76rem; color:#94a3b8; margin-top:2px; }
+    .sync-badge { font-size:0.75rem; padding:4px 10px; border-radius:999px; background:#334155; color:#38bdf8; font-weight:700; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; margin-bottom:10px; }
+    .stats-group, .action-group { display:flex; flex-wrap:wrap; gap:5px; }
+    .stat-pill { cursor:pointer; padding:6px 10px; border-radius:8px; font-size:0.78rem; font-weight:800; border:2px solid transparent; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+    .stat-pill.active { border-color:#0f172a; }
+    .stat-pill.heat { background:var(--heat); color:var(--heat-t); }
+    .stat-pill.water { background:var(--water); color:var(--water-t); }
+    .stat-pill.both { background:var(--both); color:var(--both-t); }
+    .stat-pill.work { background:var(--work); color:var(--work-t); }
+    .stat-pill.block { background:var(--block); color:var(--block-t); }
+    .stat-pill.done { background:var(--done); color:var(--done-t); }
+    .btn { cursor:pointer; border-radius:8px; padding:7px 11px; font-size:0.78rem; font-weight:800; border:1px solid #cbd5e1; background:#fff; }
+    .btn-kakao { background:#fee500; color:#191919; border-color:#eab308; }
+    .btn-excel { background:#16a34a; color:#fff; border-color:#15803d; }
+    .riser-alert { display:none; background:#fff1f2; border:2px solid #f43f5e; color:#9f1239; padding:9px 12px; border-radius:10px; margin-bottom:10px; font-size:0.82rem; font-weight:700; }
+    .map-container { background:var(--card); border-radius:12px; padding:10px; overflow-x:auto; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:12px; }
+    table.resort-map { width:100%; min-width:1100px; border-collapse:collapse; table-layout:fixed; }
+    table.resort-map th, table.resort-map td { border:1px solid #cbd5e1; text-align:center; vertical-align:middle; height:44px; font-size:0.75rem; position:relative; user-select:none; }
+    .riser-header { background:#f8fafc; color:#64748b; font-size:0.68rem; height:22px !important; font-weight:700; }
+    .riser-header.warn { background:#ef4444 !important; color:#fff !important; }
+    .floor-exit { background:#e2e8f0; font-weight:800; color:#334155; width:50px; font-size:0.72rem; }
+    .floor-gap td { height:7px !important; background:#f1f5f9; border:none !important; }
+    .facility-cell { background:#f1f5f9; color:#64748b; font-weight:700; font-size:0.7rem; }
+    .duplex-cell { background:#f8fafc; color:#94a3b8; font-size:0.7rem; }
+    .empty-cell { background:#f8fafc; }
+    .room-cell { cursor:pointer; background:#fff; font-weight:700; color:#1e293b; padding:1px; }
+    .room-cell:hover { outline:2px solid #0f172a; z-index:4; }
+    .room-num { display:block; font-size:0.76rem; font-weight:800; }
+    .room-badge { display:block; font-size:0.58rem; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .room-time { display:block; font-size:0.55rem; font-weight:600; }
+    .hist-dot { position:absolute; top:2px; right:2px; background:#16a34a; color:#fff; font-size:0.55rem; width:13px; height:13px; line-height:13px; border-radius:50%; font-weight:900; }
+    .status-heat { background:var(--heat) !important; color:var(--heat-t) !important; border:2px solid var(--heat-b) !important; }
+    .status-water { background:var(--water) !important; color:var(--water-t) !important; border:2px solid var(--water-b) !important; }
+    .status-both { background:var(--both) !important; color:var(--both-t) !important; border:2px solid var(--both-b) !important; }
+    .status-work { background:var(--work) !important; color:var(--work-t) !important; border:2px solid var(--work-b) !important; }
+    .status-block { background:var(--block) !important; color:var(--block-t) !important; border:2px solid var(--block-b) !important; }
+    .dimmed { opacity:0.15; pointer-events:none; }
+    .issue-panel { background:var(--card); border-radius:12px; padding:14px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+    .issue-panel h2 { font-size:0.95rem; margin-bottom:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px; }
+    .issue-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; }
+    .issue-card { border:1px solid #cbd5e1; border-left:5px solid #64748b; border-radius:10px; padding:10px; background:#fff; cursor:pointer; }
+    .issue-card.heat { border-left-color:var(--heat-b); }
+    .issue-card.water { border-left-color:var(--water-b); }
+    .issue-card.both { border-left-color:var(--both-b); }
+    .issue-card.work { border-left-color:var(--work-b); }
+    .issue-card.block { border-left-color:var(--block-b); }
+    .issue-card.normal { border-left-color:var(--done-b); background:#f8fafc; }
+    .issue-card-top { display:flex; justify-content:space-between; font-weight:800; font-size:0.9rem; margin-bottom:6px; }
+    .time-box { background:#f8fafc; padding:6px 8px; border-radius:6px; font-size:0.74rem; margin-bottom:6px; border:1px solid #e2e8f0; }
+    .time-row { display:flex; justify-content:space-between; margin-bottom:2px; }
+    .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.65); z-index:100; justify-content:center; align-items:center; padding:12px; }
+    .modal-backdrop.show { display:flex; }
+    .modal { background:#fff; border-radius:14px; width:100%; max-width:460px; padding:16px; max-height:92vh; overflow-y:auto; }
+    .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #e2e8f0; padding-bottom:8px; }
+    .close-btn { background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b; }
+    .section-label { font-size:0.76rem; font-weight:800; color:#334155; margin:10px 0 5px; display:flex; justify-content:space-between; align-items:center; }
+    .status-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+    .status-btn { padding:9px 6px; border-radius:8px; border:2px solid #cbd5e1; background:#fff; font-weight:800; font-size:0.82rem; cursor:pointer; }
+    .status-btn.selected { outline:3px solid #0f172a; }
+    .status-btn.normal { grid-column:span 2; background:#f0fdf4; border-color:#22c55e; color:#15803d; }
+    .status-btn.heat { background:var(--heat); border-color:var(--heat-b); color:var(--heat-t); }
+    .status-btn.water { background:var(--water); border-color:var(--water-b); color:var(--water-t); }
+    .status-btn.both { background:var(--both); border-color:var(--both-b); color:var(--both-t); }
+    .status-btn.work { background:var(--work); border-color:var(--work-b); color:var(--work-t); }
+    .status-btn.block { grid-column:span 2; background:var(--block); border-color:var(--block-b); color:var(--block-t); }
+    .datetime-panel { background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:10px; margin-top:8px; }
+    .dt-row { margin-bottom:8px; }
+    .dt-row:last-child { margin-bottom:0; }
+    .dt-header { display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; font-weight:800; margin-bottom:4px; }
+    .dt-qbtn { background:#e2e8f0; border:none; border-radius:5px; padding:3px 7px; font-size:0.68rem; font-weight:700; cursor:pointer; }
+    .dt-input { width:100%; padding:7px; border:1px solid #cbd5e1; border-radius:7px; font-size:0.84rem; font-weight:700; background:#fff; }
+    .dept-group, .tag-group { display:flex; flex-wrap:wrap; gap:5px; }
+    .chip { padding:5px 9px; border-radius:999px; font-size:0.74rem; font-weight:700; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; }
+    .chip.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+    .memo-input { width:100%; padding:9px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem; margin-top:4px; min-height:54px; }
+    .save-btn { width:100%; margin-top:10px; padding:11px; border:none; border-radius:10px; background:#0f172a; color:#fff; font-size:0.92rem; font-weight:800; cursor:pointer; }
+    .history-box { margin-top:12px; border-top:1px dashed #cbd5e1; padding-top:10px; }
+    .hist-item { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px; margin-bottom:6px; font-size:0.76rem; }
+    .hist-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+    .hist-btn { background:#fff; border:1px solid #cbd5e1; border-radius:5px; padding:2px 6px; font-size:0.68rem; font-weight:700; cursor:pointer; }
+    .hist-edit-area { display:none; margin-top:6px; padding-top:6px; border-top:1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>🏢 PINE RESORTEL 난방·온수 실시간 통합 상황판</h1>
+      <p>프런트 · 에스와이(객실팀) · 시설팀 실시간 공유 (문제 발생일시 · 조치완료일시 기록)</p>
+    </div>
+    <span id="syncBadge" class="sync-badge">🟢 실시간 연결중...</span>
+  </div>
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text); padding: 10px; }
+  <div class="toolbar">
+    <div class="stats-group">
+      <div class="stat-pill active" onclick="setFilter('all')" id="filter-all">전체 문제 <span id="cnt-all">0</span></div>
+      <div class="stat-pill heat" onclick="setFilter('heat')" id="filter-heat">🔥 난방불량 <span id="cnt-heat">0</span></div>
+      <div class="stat-pill water" onclick="setFilter('water')" id="filter-water">💧 온수불량 <span id="cnt-water">0</span></div>
+      <div class="stat-pill both" onclick="setFilter('both')" id="filter-both">🚨 난방+온수 <span id="cnt-both">0</span></div>
+      <div class="stat-pill work" onclick="setFilter('work')" id="filter-work">🔧 조치중 <span id="cnt-work">0</span></div>
+      <div class="stat-pill block" onclick="setFilter('block')" id="filter-block">⛔ 방막기 <span id="cnt-block">0</span></div>
+      <div class="stat-pill done" onclick="setFilter('done')" id="filter-done">✅ 조치완료 이력 <span id="cnt-done">0</span></div>
+    </div>
+    <div class="action-group">
+      <button class="btn btn-kakao" onclick="copyKakaoSummary()">💬 카톡 단톡방 공유복사</button>
+      <button class="btn btn-excel" onclick="exportCSV()">📊 엑셀(CSV) 저장</button>
+    </div>
+  </div>
 
-    /* 상단 헤더 */
-    .header {
-      background: #1e293b; color: #fff; padding: 12px 16px; border-radius: 12px;
-      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;
-      margin-bottom: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-    .header-title h1 { font-size: 1.2rem; font-weight: 800; letter-spacing: -0.5px; }
-    .header-title p { font-size: 0.78rem; color: #94a3b8; margin-top: 2px; }
-    .sync-badge {
-      display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem;
-      padding: 4px 10px; border-radius: 999px; background: #334155; color: #38bdf8; font-weight: 700;
-    }
+  <div id="riserAlert" class="riser-alert"></div>
+  <div class="map-container"><table class="resort-map" id="resortMap"></table></div>
 
-    /* 상단 필터 & 액션 버튼 */
-    .toolbar {
-      display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center;
-      margin-bottom: 10px;
-    }
-    .stats-group { display: flex; flex-wrap: wrap; gap: 5px; }
-    .stat-pill {
-      cursor: pointer; padding: 6px 11px; border-radius: 8px; font-size: 0.8rem; font-weight: 800;
-      border: 2px solid transparent; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-      display: flex; align-items: center; gap: 4px; transition: 0.15s;
-    }
-    .stat-pill.active { border-color: #0f172a; transform: translateY(-1px); }
-    .stat-pill.heat { background: var(--heat); color: var(--heat-text); }
-    .stat-pill.water { background: var(--water); color: var(--water-text); }
-    .stat-pill.both { background: var(--both); color: var(--both-text); }
-    .stat-pill.work { background: var(--work); color: var(--work-text); }
-    .stat-pill.block { background: var(--block); color: var(--block-text); }
-    .stat-pill.done { background: var(--done); color: var(--done-text); }
+  <div class="issue-panel">
+    <h2>
+      <span id="panelTitle">📋 현재 민원 · 조치중 객실 타임라인</span>
+      <span style="font-size:0.75rem; color:#64748b;">카드를 터치하면 날짜·시간·내용을 바로 수정합니다</span>
+    </h2>
+    <div id="issueList" class="issue-list"></div>
+  </div>
 
-    .action-group { display: flex; flex-wrap: wrap; gap: 6px; }
-    .btn {
-      cursor: pointer; border: none; border-radius: 8px; padding: 7px 11px;
-      font-size: 0.8rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;
-      background: #fff; color: #1e293b; border: 1px solid #cbd5e1;
-    }
-    .btn-kakao { background: #fee500; color: #191919; border-color: #eab308; }
-    .btn-excel { background: #16a34a; color: #fff; border-color: #15803d; }
+  <div class="modal-backdrop" id="roomModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalRoomTitle">객실 상태 관리</h3>
+        <button class="close-btn" onclick="closeModal()">×</button>
+      </div>
+      <div class="section-label">1. 상태 선택 (터치 시 시각 자동 입력)</div>
+      <div class="status-grid">
+        <button class="status-btn heat" onclick="selectStatus('heat')" id="btn-heat">🔥 난방 안됨</button>
+        <button class="status-btn water" onclick="selectStatus('water')" id="btn-water">💧 온수 안됨</button>
+        <button class="status-btn both" onclick="selectStatus('both')" id="btn-both">🚨 난방+온수 둘다 안됨</button>
+        <button class="status-btn work" onclick="selectStatus('work')" id="btn-work">🔧 시설팀 조치중/예열중</button>
+        <button class="status-btn block" onclick="selectStatus('block')" id="btn-block">⛔ 판매보류 / 방막기 (배정금지)</button>
+        <button class="status-btn normal" onclick="selectStatus('normal')" id="btn-normal">✅ 조치 완료 (정상 복구 + 완료시간 기록)</button>
+      </div>
 
-    /* 수직 배관 라인 경보 */
-    .riser-alert {
-      display: none; background: #fff1f2; border: 2px solid #f43f5e; color: #9f1239;
-      padding: 9px 14px; border-radius: 10px; margin-bottom: 10px; font-size: 0.83rem; font-weight: 700;
-    }
-
-    /* 객실 배치도 테이블 */
-    .map-container {
-      background: var(--card); border-radius: 12px;
+      <div class="datetime-panel">
+        <div class="dt-row">
+          <div class="dt-header">
+            <span style="color:#dc2626;">🚨 문제 발생(민원 접수) 일시</span>
+            <div>
+              <button type="button" class="dt-qbtn" onclick="setQuickTime('issueTimeInput',0)">지금</button>
+              <button type="button" class="dt-qbtn" onclick="setQuickTime('issueTimeInput',-30)">30분전</button>
+              <button type="button" class="dt-qbtn" onclick="setQuickTime('issueTimeInput',-
